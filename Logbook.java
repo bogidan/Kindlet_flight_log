@@ -70,6 +70,7 @@ public class Logbook extends AbstractKindlet {
 	public FlightModel fmodel;
 	public Flight flight; // Flight being edited or Added
 	public String flight_backup;
+	public char[] def_crew = {'S',' ','A'};
 	// UI Components
 	public KRepaintManager screenManager;
 	public CardLayout card;
@@ -94,6 +95,8 @@ public class Logbook extends AbstractKindlet {
 		this.root = ctx.getRootContainer();
 		screenManager = KRepaintManager.getInstance();
 		get_date();
+		String[] crew_list = load_list(dir.concat("config/crew.csv"));
+		Flight.init(crew_list);
 		fmodel = new FlightModel(filename, save_date);
 		try {
 			// Set Fonts to Use
@@ -173,6 +176,7 @@ public class Logbook extends AbstractKindlet {
 											KOptionPane.CANCEL_SAVE_OPTIONS);
 									if(result!=KOptionPane.CANCEL_OPTION) {
 										fmodel.addFlight((Flight)fmodel.fdata.get(flight_num-1));
+										screenManager.repaint(root,false);
 										break;
 									}
 									result = KOptionPane.showConfirmDialog(root,
@@ -226,8 +230,8 @@ public class Logbook extends AbstractKindlet {
 							}
 						case Gestures.BUTTON_TAP : // Add Flight
 							flight_backup = null;
-							flight = fmodel.createFlight(false);
-							get_name(true);
+							flight = fmodel.createFlight(false,def_crew);
+							get_name(false);
 							break;
 					}
 				}
@@ -254,7 +258,7 @@ public class Logbook extends AbstractKindlet {
 							}
 						case Gestures.BUTTON_TAP : // Add Flight
 							flight_backup = null;
-							flight = fmodel.createFlight(true);
+							flight = fmodel.createFlight(true,def_crew);
 							get_name(true);
 							break;
 					}
@@ -374,7 +378,7 @@ public class Logbook extends AbstractKindlet {
 			notes.setLayout(card_notes);
 			notes.add(notes_tandem, "tandem");
 			notes.add(notes_solo, "solo");
-			String[] crew_list = load_list(dir.concat("config/crew.csv"));
+			//String[] crew_list = load_list(dir.concat("config/crew.csv"));
 			work_tug = new JPanel(new GridLayout(crew_list.length,1));// Work Logs
 			work_tug.add(new JLabel("Tug"));
 			work_tug.add(new JLabel());
@@ -386,6 +390,13 @@ public class Logbook extends AbstractKindlet {
 			for(int i=1;i<crew_list.length;i++) {
 				JButton worker;
 				String initial = crew_list[i].substring(0,1);
+				char def_char = crew_list[i].charAt(2);
+				if(def_char=='@') { // Default Tandem Pilot
+					def_crew[2]=initial.charAt(0);
+				}
+				else if(def_char=='*') { // Default Tug Pilot
+					def_crew[0]=initial.charAt(0);
+				}
 				int index = crew_list[i].lastIndexOf(",");
 				if(crew_list[i].charAt(index+1)=='1') {
 					worker = new JButton(initial); worker.setFont(edit_font); work_crew.add(worker);
@@ -782,7 +793,7 @@ class FlightModel extends AbstractTableModel {
 			fireTableDataChanged();
 		} else fireTableRowsInserted(this.fdata.size(),this.fdata.size());
 	}
-	public Flight createFlight(boolean solo) {
+	public Flight createFlight(boolean solo,char[] def_crew) {
 		Flight newf = null;
 		for(int i=fdata.size()-1;i>=0;i--) { // Search for matching
 			newf = (Flight)fdata.get(i); 
@@ -790,10 +801,13 @@ class FlightModel extends AbstractTableModel {
 			else newf = null;
 		}
 		if(newf!=null) {
-			newf = new Flight("","",newf.alt,new String(newf.work));
+			newf = new Flight("","",newf.alt,newf.work);
 		} else {
-			if(solo) newf = new Flight("","",2,"Z  ");
-			else newf = new Flight("","",2,"Z A");
+			if(solo) {
+				def_crew[2]=' ';
+				newf = new Flight("","",2,def_crew);
+			}
+			else newf = new Flight("","",2,def_crew);
 		}
 		return newf;
 	}
@@ -805,14 +819,38 @@ class Flight {
 	public int alt;
 	public char[] work = new char[3];
 	public boolean solo;
-
-	public Flight(String name, String notes, int alt, String wrk) {
+	private static char[] initials;
+	private static String[] names;
+	public static void init(String[] crew_list) {
+		initials = new char[crew_list.length];
+		names = new String[crew_list.length];
+		crew_list[1] = crew_list[1].substring(0,2)
+			.concat(crew_list[1].substring(crew_list[1].indexOf(',',2)));
+		for(int i=1;i<crew_list.length;i++) {
+			String line = crew_list[i];
+			initials[i] = line.charAt(0);
+			char first = line.charAt(2);
+			int s_i = first=='@'||first=='*' ? 3 : 2;
+			names[i] = line.substring(s_i,line.indexOf(',',s_i));
+		}
+	}
+	private static String i_name(char initial) {
+		for(int i=0;i<initials.length;i++)
+			if(initial==initials[i]) return names[i];
+		return "";
+	}
+	private static char name_i(String name) {
+		for(int i=0;i<names.length;i++)
+			if(name.equals(names[i])) return initials[i];
+		return ' ';
+	}
+	public Flight(String name, String notes, int alt, char[] wrk) {
 		this.name = name;
 		this.notes = notes;
 		this.alt = alt; // 0,1,2,3,4
-		this.work[0] = wrk.charAt(0);
-		this.work[1] = wrk.charAt(1);
-		this.work[2] = wrk.charAt(2);
+		this.work[0] = wrk[0];
+		this.work[1] = wrk[1];
+		this.work[2] = wrk[2];
 		this.solo = this.work[2]==' ';
 	}
 	public Flight( String data ) {
@@ -823,16 +861,26 @@ class Flight {
 		prev_i = next_i + 1; next_i = data.indexOf(',',prev_i);
 		if(this.alt == -1) this.alt = Flight.alt_parse(data.substring(prev_i,next_i)); // Solo Alt
 		prev_i = next_i + 1; next_i = data.indexOf(',',prev_i);
-		if((this.work[0] = data.charAt(prev_i))==',') { // Tug Pilot
-			this.work[0] = ' '; prev_i++;
-		} else prev_i += 2;
-		if((this.work[1] = data.charAt(prev_i))==',') { // Crew
-			this.work[1] = ' '; prev_i++;
-		} else prev_i += 2;
-		if((this.work[2] = data.charAt(prev_i))==',') { // Tandem Pilot
-			this.work[2] = ' '; prev_i++;
-		} else prev_i += 2;
-		this.notes = data.substring(data.lastIndexOf(',')+1);
+		switch(data.charAt(prev_i)) { // Tug Pilot
+			case ',' : this.work[0]=' '; break;
+			case '*' : prev_i++;
+			default : 
+				this.work[0]= name_i(data.substring(prev_i,next_i));
+				prev_i = next_i + 1; next_i = data.indexOf(',',prev_i);
+		} 
+		switch(data.charAt(prev_i)) { // Crew
+			case ',' : this.work[1]=' '; break;
+			default : 
+				this.work[1]= name_i(data.substring(prev_i,next_i));
+				prev_i = next_i + 1; next_i = data.indexOf(',',prev_i);
+		} 
+		switch(data.charAt(prev_i)) { // Tandem Pilot
+			case ',' : this.work[2]=' '; break;
+			case '@' : prev_i++;
+			default : 
+				this.work[2]= name_i(data.substring(prev_i,next_i));
+		} 
+		this.notes = data.substring(data.lastIndexOf(',')+1); // Notes
 		this.solo = this.work[2]==' ';
 	}
 	public void setCol(int col,String val) {
@@ -869,10 +917,10 @@ class Flight {
 		} else {
 			str.append(',').append(alt_str).append(','); // Solo Alt #
 		}
-		str.append(this.work[0]).append(','); // Tug Pilot
-		if(this.work[1]!=' ') { str.append(this.work[1]); } // Crew
+		str.append(i_name(this.work[0])).append(','); // Tug Pilot
+		if(this.work[1]!=' ') str.append(i_name(this.work[1])); // Crew
 		str.append(',');
-		if(this.work[2]!=' ') { str.append(this.work[2]); } // Tandem Pilot
+		if(this.work[2]!=' ') str.append(i_name(this.work[2])); // Tandem Pilot
 		str.append(',');
 		str.append(this.notes); // Rental/Notes
 		return str.toString();
@@ -906,10 +954,7 @@ class Flight {
 }
 /* --ToDo--
  *  -- Code --
- * add duplicate feature from logs -- Fix graphics bug
- * add defaults field to show the default tug/Tandem
- * fix reload all after update
- * Add Names to Crew save files
+ * fix reload all after update.py
  *  -- Scripts --
  * Sync
  *   Do dropbox conservative syncing/updating
