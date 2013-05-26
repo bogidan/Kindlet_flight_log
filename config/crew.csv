@@ -1,0 +1,10 @@
+@Initial,Name,Tug?,Tandem?,Crew?
+ ,*No One*,0,0,1
+A,@Adam,1,1,0
+B,Bob,0,1,1
+K,Kari,0,0,1
+E,Steve,0,1,0
+J,Jim,1,1,0
+S,Sunny,1,1,1
+W,Windsor,1,0,1
+Z,*Zack,1,0,1

@@ -1,0 +1,6 @@
+#!/bin/sh
+stop framework
+mv /var/local/adunits /var/local/adunits.bak
+touch /var/local/adunits
+chmod 000 /var/local/adunits
+start framework

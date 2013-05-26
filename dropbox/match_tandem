@@ -1,0 +1,19 @@
+#!/bin/sh
+dir=/mnt/us/developer/APP\ Logbook/work/config/
+l=${1:0:1}
+fn=${dir}pre/s_$l
+if ! [ -f "$fn" ]; then
+	more "${dir}tandem.csv" | grep -i "\b$l" | tr -d ',\r' > "$fn"
+fi
+
+cmd=""
+
+for v in "$@"
+do
+	for w in $v
+	do
+		cmd="$cmd | grep -i '\\b$w'"
+	done
+done
+
+sh -c "more '${fn}'$cmd -m 10"
