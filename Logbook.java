@@ -461,6 +461,7 @@ public class Logbook extends AbstractKindlet {
 							}
 							if(new_notes.length() > 0)
 								flight.notes = new_notes.deleteCharAt(new_notes.length()-1).toString();
+							else flight.notes = "";
 							if(flight_backup==null) {
 								fmodel.addFlight(flight);
 								update_log();
