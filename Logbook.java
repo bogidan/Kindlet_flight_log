@@ -101,7 +101,7 @@ public class Logbook extends AbstractKindlet {
 		try {
 			// Set Fonts to Use
 			Font menu_font = ctx.getUIResources().getFont(KFontFamilyName.MONOSPACE,14);
-			Font table_font = ctx.getUIResources().getFont(KFontFamilyName.MONOSPACE,10);
+			Font table_font = ctx.getUIResources().getFont(KFontFamilyName.MONOSPACE,11);
 			Font edit_font = ctx.getUIResources().getFont(KFontFamilyName.MONOSPACE,12);
 			// Setup menu Once
 			KMenu menu = new KMenu();
@@ -138,12 +138,12 @@ public class Logbook extends AbstractKindlet {
 			logs_cells.setSelectionMode(DefaultListSelectionModel.SINGLE_SELECTION);
 			logs_cells.setRowSelectionAllowed(true);
 			logs_cells.setFont(table_font);
-			logs_cells.setRowHeight(29);
-			logs_cells.getColumnModel().getColumn(0).setPreferredWidth(50); // #
-			logs_cells.getColumnModel().getColumn(1).setPreferredWidth(306); // Name
+			logs_cells.setRowHeight(36);
+			logs_cells.getColumnModel().getColumn(0).setPreferredWidth(54); // #
+			logs_cells.getColumnModel().getColumn(1).setPreferredWidth(308); // Name
 			logs_cells.getColumnModel().getColumn(2).setPreferredWidth(130); // Notes
-			logs_cells.getColumnModel().getColumn(3).setPreferredWidth(50); // Alt
-			logs_cells.getColumnModel().getColumn(4).setPreferredWidth(50); // Work
+			logs_cells.getColumnModel().getColumn(3).setPreferredWidth(54); // Alt
+			logs_cells.getColumnModel().getColumn(4).setPreferredWidth(54); // Work
 			logs_cells.addMouseListener(new MouseListener() {
 				public void mouseClicked(MouseEvent e) {
 					switch(e.getButton()) {
@@ -171,16 +171,7 @@ public class Logbook extends AbstractKindlet {
 									to_del.append(' ').append(flight.getAltstr()).append('\n');
 									to_del.append(' ').append(new String(flight.work));
 									int result = KOptionPane.showConfirmDialog(root,
-											"Save A copy of flight #".concat(to_del.toString()),
-											"Duplication Confirmation",
-											KOptionPane.CANCEL_SAVE_OPTIONS);
-									if(result!=KOptionPane.CANCEL_OPTION) {
-										fmodel.addFlight((Flight)fmodel.fdata.get(flight_num-1));
-										screenManager.repaint(root,false);
-										break;
-									}
-									result = KOptionPane.showConfirmDialog(root,
-											"**Delete** flight #".concat(to_del.toString()),
+											"Delete flight #".concat(to_del.toString()),
 											"Deletion Confirmation",
 											KOptionPane.NO_YES_OPTIONS);
 									if(result==KOptionPane.YES_OPTION) {
@@ -229,9 +220,8 @@ public class Logbook extends AbstractKindlet {
 								}
 							}
 						case Gestures.BUTTON_TAP : // Add Flight
-							flight_backup = null;
 							flight = fmodel.createFlight(false,def_crew);
-							get_name(false);
+							get_name(true);
 							break;
 					}
 				}
@@ -239,6 +229,19 @@ public class Logbook extends AbstractKindlet {
 				public void mousePressed(MouseEvent e) { }
 				public void mouseExited(MouseEvent e) { }
 				public void mouseEntered(MouseEvent e) { }
+			});
+			JButton duplicate = new JButton("Copy"); // Duplicate
+			duplicate.setFont(menu_font);
+			duplicate.addActionListener(new ActionListener() {
+				public void actionPerformed(ActionEvent e) {
+					int[] sel_rows = logs_cells.getSelectedRows();
+					for(int i=0;i<sel_rows.length;i++) {
+						Flight sel = (Flight) fmodel.fdata.get(sel_rows[i]+fmodel.page*fmodel.page_size);
+						fmodel.addFlight(new Flight(sel.toString()));
+						screenManager.repaint(logs_cells,false);
+					}
+					if(sel_rows.length==0) KOptionPane.showMessageDialog(root,"No flight Selected");
+				}
 			});
 			JButton solo = new JButton("Add Solo"); // Solo
 			solo.setFont(menu_font);
@@ -257,7 +260,6 @@ public class Logbook extends AbstractKindlet {
 								}
 							}
 						case Gestures.BUTTON_TAP : // Add Flight
-							flight_backup = null;
 							flight = fmodel.createFlight(true,def_crew);
 							get_name(true);
 							break;
@@ -268,9 +270,10 @@ public class Logbook extends AbstractKindlet {
 				public void mouseExited(MouseEvent e) { }
 				public void mouseEntered(MouseEvent e) { }
 			});
-			JPanel log_buttons = new JPanel(new GridLayout(1,2)); // Log Buttons
-			log_buttons.add(tandem);
-			log_buttons.add(solo);
+			JPanel log_buttons = new JPanel(new BorderLayout()); // Log Buttons
+			log_buttons.add(tandem, BorderLayout.WEST);
+			log_buttons.add(duplicate, BorderLayout.CENTER);
+			log_buttons.add(solo, BorderLayout.EAST);
 
 			// Name Card
 			ActionListener name_listener = new ActionListener() {
@@ -574,6 +577,7 @@ public class Logbook extends AbstractKindlet {
 	}
 	private void get_name(boolean add) {
 		if(add) {
+			flight_backup = null;
 			mod_recent_names();
 		} else {
 			Component[] buts = name_buttons.getComponents();
@@ -704,7 +708,7 @@ class FlightModel extends AbstractTableModel {
 	public String filename;
 	public String save_date;
 	public int page;
-	public int page_size = 20;
+	public int page_size = 16;
 
 	public FlightModel(String filename, String save_date) {
 		this.page = 0;
@@ -740,7 +744,10 @@ class FlightModel extends AbstractTableModel {
 		}
 	}
 	public int getColumnCount() { return col_names.length; }
-	public int getRowCount() { return fdata.size()-this.page*this.page_size; }
+	public int getRowCount() {
+		int count = fdata.size()-this.page*this.page_size;
+		return count < this.page_size ? count : this.page_size;
+	}
 	public int getFlightCount() { return fdata.size(); }
 	public String getColumnName(int col) { return col_names[col]; }
 	public Object getValueAt(int row, int col) {
@@ -863,18 +870,17 @@ class Flight {
 		if(this.alt == -1) this.alt = Flight.alt_parse(data.substring(prev_i,next_i)); // Solo Alt
 		prev_i = next_i + 1; next_i = data.indexOf(',',prev_i);
 		switch(data.charAt(prev_i)) { // Tug Pilot
-			case ',' : this.work[0]=' '; break;
 			case '*' : prev_i++;
 			default : 
 				this.work[0]= name_i(data.substring(prev_i,next_i));
-				prev_i = next_i + 1; next_i = data.indexOf(',',prev_i);
 		} 
+		prev_i = next_i + 1; next_i = data.indexOf(',',prev_i);
 		switch(data.charAt(prev_i)) { // Crew
 			case ',' : this.work[1]=' '; break;
 			default : 
 				this.work[1]= name_i(data.substring(prev_i,next_i));
-				prev_i = next_i + 1; next_i = data.indexOf(',',prev_i);
 		} 
+		prev_i = next_i + 1; next_i = data.indexOf(',',prev_i);
 		switch(data.charAt(prev_i)) { // Tandem Pilot
 			case ',' : this.work[2]=' '; break;
 			case '@' : prev_i++;
@@ -955,6 +961,7 @@ class Flight {
 }
 /* --ToDo--
  *  -- Code --
+ * Add convert between solo/tandem
  * fix reload all after update.py
  *  -- Scripts --
  * Sync
