@@ -9,6 +9,7 @@ import com.amazon.kindle.kindlet.ui.KRepaintManager;
 import com.amazon.kindle.kindlet.input.Gestures;
 import com.amazon.kindle.kindlet.ui.KOptionPane;
 import com.amazon.kindle.kindlet.input.keyboard.*;
+import com.amazon.kindle.kindlet.net.NetworkDisabledException;
 // Utilities
 import java.util.Calendar;
 import java.util.ArrayList;
@@ -89,7 +90,13 @@ public class Logbook extends AbstractKindlet {
 	public JButton work_crew_but;
 	public JPanel work_tandem;
 	public JButton work_tandem_but;
+	
 
+	public void reCreate() {
+		// Remove all from root of ctx
+		//root.
+		this.create(ctx);
+	}
 	public void create(KindletContext context) {
 		this.ctx = context;
 		this.root = ctx.getRootContainer();
@@ -114,17 +121,18 @@ public class Logbook extends AbstractKindlet {
 			menu.add("Sync",new ActionListener() {
 				public void actionPerformed(ActionEvent e) {
 					fmodel.save();
-					if(python("sync.py"))
+					if(python("sync.py")) {
 						KOptionPane.showMessageDialog(root,"Sync Completed");
-					else KOptionPane.showMessageDialog(root,"Sync Failed");
+					} else KOptionPane.showMessageDialog(root,"Sync Failed");
 				}
 			});
 			menu.add("Update",new ActionListener() {
 				public void actionPerformed(ActionEvent e) {
 					fmodel.save();
-					if(python("update.py"))
+					if(python("update.py")) {
 						KOptionPane.showMessageDialog(root,"Update Completed");
-					else KOptionPane.showMessageDialog(root,"Update Failed");
+						reCreate();
+					} else KOptionPane.showMessageDialog(root,"Update Failed");
 				}
 			});
 			ctx.setMenu(menu);
@@ -686,18 +694,26 @@ public class Logbook extends AbstractKindlet {
 		}
 	}
 	private boolean python(String script) {
-		if(!ctx.getConnectivity().isConnected()) return false;
 		String[] cmd = {"/mnt/us/python/usr/bin/python2.7",dir.concat(".dropbox/").concat(script)};
 		Process python=null;
 		try {
+			ctx.getConnectivity().requestConnectivity(true);
+			ctx.setSubTitle("Running... ".concat(script));
 			python = Runtime.getRuntime().exec(cmd);
-			try {
-				screenManager.repaint(root,true);
-			} catch(IllegalStateException e) { }
 			python.waitFor();
 		}
-		catch(IOException e) { e.printStackTrace(); return false; }
-		catch(InterruptedException e) { if(python!=null)python.destroy(); return false; }
+		catch(NetworkDisabledException e) {
+			ctx.setSubTitle("No Network");
+			return false;
+		} catch(InterruptedException e) {
+			if(python!=null)python.destroy();
+			ctx.setSubTitle("");
+			return false;
+		} catch(IOException e) {
+			ctx.setSubTitle(script.concat(" Failed"));
+			return false;
+		}
+		ctx.setSubTitle(script.concat(" Succeded"));
 		return true;
 	}
 }
@@ -963,10 +979,10 @@ class Flight {
  *  -- Code --
  * Add convert between solo/tandem
  * fix reload all after update.py
+ * Add view/edit previous logs
  *  -- Scripts --
  * Sync
- *   Do dropbox conservative syncing/updating
- *   improve sync to properly sync all data
+ *  Add effortless Sync
  * match_*
  *   case "s s"
  */
